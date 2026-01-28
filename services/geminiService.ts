@@ -17,6 +17,44 @@ const cleanAndParseJson = (text: string): any => {
 // Helper for delay (ms)
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Generate realistic fallback data when API is unavailable
+const getFallbackWeather = (location: string): WeatherData => {
+  const now = new Date();
+  const currentHour = now.getHours();
+  
+  // Create predictable but varied data based on location name length
+  const baseTemp = 18 + (location.length % 10);
+  const cityDisplay = location.split(',')[0].trim();
+  const capCity = cityDisplay.charAt(0).toUpperCase() + cityDisplay.slice(1);
+
+  return {
+    city: `${capCity}`,
+    temp: baseTemp,
+    condition: "Parçalı Bulutlu",
+    high: baseTemp + 4,
+    low: baseTemp - 3,
+    feelsLike: baseTemp + 1,
+    hourly: Array.from({ length: 12 }, (_, i) => {
+      const h = (currentHour + i) % 24;
+      const isDay = h > 6 && h < 20;
+      return {
+        time: `${h.toString().padStart(2, '0')}:00`,
+        temp: baseTemp + (isDay ? 2 : -2) + Math.floor(Math.random() * 3),
+        icon: isDay ? "cloud-sun" : "cloud-moon",
+        isNow: i === 0
+      };
+    }),
+    weekly: [
+      { day: "Pazartesi", high: baseTemp + 2, low: baseTemp - 2, icon: "sun" },
+      { day: "Salı", high: baseTemp + 3, low: baseTemp - 1, icon: "cloud-sun" },
+      { day: "Çarşamba", high: baseTemp + 1, low: baseTemp - 3, icon: "cloud-rain" },
+      { day: "Perşembe", high: baseTemp, low: baseTemp - 4, icon: "cloud" },
+      { day: "Cuma", high: baseTemp + 4, low: baseTemp, icon: "sun" },
+    ],
+    isMock: true
+  };
+};
+
 export const fetchWeather = async (location: string): Promise<WeatherData> => {
   const model = "gemini-3-flash-preview"; 
   const now = new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", timeZoneName: "short" });
@@ -62,7 +100,7 @@ export const fetchWeather = async (location: string): Promise<WeatherData> => {
   `;
 
   let lastError: any;
-  const maxRetries = 3; // Maximum number of retries
+  const maxRetries = 2; 
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -83,13 +121,16 @@ export const fetchWeather = async (location: string): Promise<WeatherData> => {
 
       const textResponse = response.text || "{}";
       
-      // Validate response structure
       if (!textResponse.includes('{')) {
         throw new Error("Invalid response format from AI");
       }
 
       const data = cleanAndParseJson(textResponse) as WeatherData;
       
+      // Ensure arrays exist to prevent crashes
+      if (!Array.isArray(data.hourly)) data.hourly = [];
+      if (!Array.isArray(data.weekly)) data.weekly = [];
+
       if (sources && sources.length > 0) {
         data.sources = sources;
       }
@@ -100,29 +141,32 @@ export const fetchWeather = async (location: string): Promise<WeatherData> => {
       lastError = error;
       const errorStr = JSON.stringify(error);
       
-      // Check for 429 (Too Many Requests) or Resource Exhausted errors
       const isQuotaError = errorStr.includes("429") || 
                            errorStr.includes("RESOURCE_EXHAUSTED") || 
                            errorStr.includes("quota");
 
-      if (isQuotaError && attempt < maxRetries) {
-        // Exponential backoff: Wait 1s, then 2s, then 4s...
-        const delayTime = Math.pow(2, attempt - 1) * 1000;
-        console.warn(`Attempt ${attempt} failed with 429/Quota. Retrying in ${delayTime}ms...`);
-        await wait(delayTime);
-        continue;
+      if (isQuotaError) {
+        if (attempt < maxRetries) {
+          const delayTime = Math.pow(2, attempt) * 1000;
+          await wait(delayTime);
+          continue;
+        } else {
+          // If we run out of retries on a quota error, return fallback data
+          console.warn("Quota exceeded, returning fallback data.");
+          return getFallbackWeather(location);
+        }
       }
       
-      // If it's not a quota error or we ran out of retries, break the loop
+      // If it's not a quota error (e.g. 500, network), break and throw
       break;
     }
   }
 
-  // Handle the final error to provide a user-friendly message
+  // Handle final error
   const finalErrorStr = lastError?.message || JSON.stringify(lastError);
-  
   if (finalErrorStr.includes("429") || finalErrorStr.includes("RESOURCE_EXHAUSTED")) {
-    throw new Error("⚠️ Sunucu çok yoğun (Kota Aşıldı). Lütfen 10-15 saniye bekleyip tekrar deneyin.");
+    // This fallback is redundant if the loop logic is correct, but safe to keep
+    return getFallbackWeather(location);
   }
   
   throw lastError;

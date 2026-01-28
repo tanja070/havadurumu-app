@@ -6,7 +6,7 @@ import { WeeklyItem } from './components/WeeklyItem';
 import { IconMap } from './components/IconMap';
 import { fetchWeather } from './services/geminiService';
 import { WeatherData, TabView } from './types';
-import { MapPin, List, Plus, Search, Loader2, X, Trash2, AlertCircle, Wifi } from 'lucide-react';
+import { MapPin, List, Plus, Search, Loader2, X, Trash2, AlertCircle, Wifi, CloudOff } from 'lucide-react';
 
 export default function App() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -144,11 +144,15 @@ export default function App() {
             <>
               <div className="flex items-center gap-2">
                 <h2 className="text-3xl font-semibold tracking-wide">{weather?.city || "Bilinmiyor"}</h2>
-                {weather && (
+                {weather?.isMock ? (
+                  <span className="flex items-center gap-1 text-[10px] font-bold bg-yellow-500/20 text-yellow-200 px-2 py-0.5 rounded-full border border-yellow-500/30">
+                    <CloudOff className="w-3 h-3" /> DEMO MODU
+                  </span>
+                ) : weather ? (
                   <span className="flex items-center gap-1 text-[10px] font-bold bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full border border-green-500/30 shadow-[0_0_10px_rgba(74,222,128,0.2)]">
                     <Wifi className="w-3 h-3" /> CANLI
                   </span>
-                )}
+                ) : null}
               </div>
               <div className="text-[5rem] font-light leading-none tracking-tight my-2">
                 {weather?.temp ?? "--"}°
@@ -292,7 +296,7 @@ export default function App() {
                     
                     <div className="flex items-center gap-4">
                       <span className="text-2xl font-light">{cityData.temp}°</span>
-                      <IconMap iconName={cityData.hourly[0]?.icon || 'sun'} className="w-8 h-8" />
+                      <IconMap iconName={cityData.hourly?.[0]?.icon || 'sun'} className="w-8 h-8" />
                       <button 
                         onClick={(e) => deleteCity(e, cityData.city)}
                         className="p-2 hover:bg-red-500/20 rounded-full group transition-colors"
