@@ -6,12 +6,13 @@ import { WeeklyItem } from './components/WeeklyItem';
 import { IconMap } from './components/IconMap'; // Import IconMap for the list view
 import { fetchWeather } from './services/geminiService';
 import { WeatherData, TabView } from './types';
-import { MapPin, List, Plus, Search, Loader2, X, Trash2 } from 'lucide-react';
+import { MapPin, List, Plus, Search, Loader2, X, Trash2, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [savedCities, setSavedCities] = useState<WeatherData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabView>(TabView.HOURLY);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showSearch, setShowSearch] = useState<boolean>(false);
@@ -48,6 +49,7 @@ export default function App() {
 
   const loadWeather = async (location: string) => {
     setLoading(true);
+    setError(null);
     setShowSearch(false);
     setShowList(false); // Close list if open
     try {
@@ -65,8 +67,9 @@ export default function App() {
         return [data, ...prev]; // Add to top
       });
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Weather load failed:", err);
+      setError(err.message || "Could not fetch weather data");
     } finally {
       setLoading(false);
     }
@@ -88,6 +91,7 @@ export default function App() {
   const handleGeoLocation = () => {
     if (navigator.geolocation) {
       setLoading(true);
+      setError(null);
       setShowList(false);
       navigator.geolocation.getCurrentPosition(
         async (position) => {
@@ -97,6 +101,7 @@ export default function App() {
         (error) => {
           console.error(error);
           setLoading(false);
+          setError("Location access denied or failed.");
         }
       );
     }
@@ -125,6 +130,17 @@ export default function App() {
              <div className="h-20 flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-purple-300" />
              </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center p-4 bg-red-500/20 rounded-2xl border border-red-500/30 backdrop-blur-sm animate-pulse-slow">
+              <AlertCircle className="w-8 h-8 text-red-200 mb-2" />
+              <p className="text-center text-red-100 text-sm font-medium">{error}</p>
+              <button 
+                onClick={() => loadWeather("Istanbul")}
+                className="mt-3 px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-full text-xs font-semibold transition-colors"
+              >
+                Retry Default
+              </button>
+            </div>
           ) : (
             <>
               <h2 className="text-3xl font-semibold tracking-wide">{weather?.city || "Unknown"}</h2>
@@ -170,6 +186,10 @@ export default function App() {
               <div className="flex items-center justify-center h-32">
                  <Loader2 className="w-6 h-6 animate-spin text-white/30" />
               </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-32 text-white/30 text-sm">
+                Data unavailable
+              </div>
             ) : (
               <>
                 {activeTab === TabView.HOURLY ? (
@@ -197,8 +217,6 @@ export default function App() {
                     ))}
                   </div>
                 )}
-                
-                {/* Sources Footer Removed */}
               </>
             )}
           </div>
