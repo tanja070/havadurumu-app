@@ -3,10 +3,10 @@ import { Background } from './components/Background';
 import { WeatherHouse } from './components/WeatherHouse';
 import { ForecastItem } from './components/ForecastItem';
 import { WeeklyItem } from './components/WeeklyItem';
-import { IconMap } from './components/IconMap'; // Import IconMap for the list view
+import { IconMap } from './components/IconMap';
 import { fetchWeather } from './services/geminiService';
 import { WeatherData, TabView } from './types';
-import { MapPin, List, Plus, Search, Loader2, X, Trash2, AlertCircle } from 'lucide-react';
+import { MapPin, List, Plus, Search, Loader2, X, Trash2, AlertCircle, Wifi } from 'lucide-react';
 
 export default function App() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -19,7 +19,7 @@ export default function App() {
   const [showList, setShowList] = useState<boolean>(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initial load - Try Geolocation first
+  // Başlangıç - Konum izni iste
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -28,8 +28,8 @@ export default function App() {
           loadWeather(`${latitude}, ${longitude}`);
         },
         (error) => {
-          console.warn("Geolocation failed or denied on startup:", error);
-          loadWeather("Istanbul"); // Fallback for Turkish context
+          console.warn("Konum alınamadı:", error);
+          loadWeather("Istanbul"); // Varsayılan
         }
       );
     } else {
@@ -38,7 +38,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Focus input when search opens
+  // Arama açılınca inputa odaklan
   useEffect(() => {
     if (showSearch && inputRef.current) {
       setTimeout(() => {
@@ -51,25 +51,25 @@ export default function App() {
     setLoading(true);
     setError(null);
     setShowSearch(false);
-    setShowList(false); // Close list if open
+    setShowList(false);
     try {
       const data = await fetchWeather(location);
       setWeather(data);
       
-      // Update saved cities list
+      // Kayıtlı şehirleri güncelle
       setSavedCities(prev => {
         const existingIndex = prev.findIndex(c => c.city.toLowerCase() === data.city.toLowerCase());
         if (existingIndex >= 0) {
           const newCities = [...prev];
-          newCities[existingIndex] = data; // Update existing with fresh data
+          newCities[existingIndex] = data;
           return newCities;
         }
-        return [data, ...prev]; // Add to top
+        return [data, ...prev];
       });
 
     } catch (err: any) {
-      console.error("Weather load failed:", err);
-      setError(err.message || "Could not fetch weather data");
+      console.error("Hava durumu yüklenemedi:", err);
+      setError(err.message || "Veri alınamadı");
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function App() {
     e.preventDefault();
     if (searchQuery.trim()) {
       loadWeather(searchQuery);
-      setSearchQuery(""); // Clear input after search
+      setSearchQuery("");
     }
   };
 
@@ -101,7 +101,7 @@ export default function App() {
         (error) => {
           console.error(error);
           setLoading(false);
-          setError("Location access denied or failed.");
+          setError("Konum erişimi reddedildi.");
         }
       );
     }
@@ -121,7 +121,6 @@ export default function App() {
     <div className="relative h-[100dvh] w-full flex flex-col font-sans text-white select-none overflow-hidden">
       <Background />
 
-      {/* Main Content Area */}
       <main className="relative z-10 flex-1 flex flex-col p-4 pb-6 max-w-md mx-auto w-full h-full justify-between">
         
         {/* Header */}
@@ -138,25 +137,32 @@ export default function App() {
                 onClick={() => loadWeather("Istanbul")}
                 className="mt-3 px-4 py-1.5 bg-white/10 hover:bg-white/20 rounded-full text-xs font-semibold transition-colors"
               >
-                Retry Default
+                Varsayılanı Dene
               </button>
             </div>
           ) : (
             <>
-              <h2 className="text-3xl font-semibold tracking-wide">{weather?.city || "Unknown"}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-3xl font-semibold tracking-wide">{weather?.city || "Bilinmiyor"}</h2>
+                {weather && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full border border-green-500/30 shadow-[0_0_10px_rgba(74,222,128,0.2)]">
+                    <Wifi className="w-3 h-3" /> CANLI
+                  </span>
+                )}
+              </div>
               <div className="text-[5rem] font-light leading-none tracking-tight my-2">
                 {weather?.temp ?? "--"}°
               </div>
-              <p className="text-lg text-purple-200 font-medium">{weather?.condition || "Loading..."}</p>
+              <p className="text-lg text-purple-200 font-medium">{weather?.condition || "Yükleniyor..."}</p>
               <div className="flex gap-3 text-sm font-medium text-white/80">
-                <span>H:{weather?.high ?? "-"}°</span>
-                <span>L:{weather?.low ?? "-"}°</span>
+                <span>Y:{weather?.high ?? "-"}°</span>
+                <span>D:{weather?.low ?? "-"}°</span>
               </div>
             </>
           )}
         </header>
 
-        {/* 3D House Visual - Flexible Container */}
+        {/* 3D House Visual */}
         <div className="flex-1 min-h-0 flex items-center justify-center py-2">
           <WeatherHouse />
         </div>
@@ -170,13 +176,13 @@ export default function App() {
               onClick={() => setActiveTab(TabView.HOURLY)}
               className={`text-sm font-medium transition-colors duration-200 ${activeTab === TabView.HOURLY ? 'text-white border-b-2 border-pink-400 pb-1' : 'text-white/40'}`}
             >
-              Hourly Forecast
+              Saatlik
             </button>
             <button 
               onClick={() => setActiveTab(TabView.WEEKLY)}
               className={`text-sm font-medium transition-colors duration-200 ${activeTab === TabView.WEEKLY ? 'text-white border-b-2 border-pink-400 pb-1' : 'text-white/40'}`}
             >
-              Weekly Forecast
+              Haftalık
             </button>
           </div>
 
@@ -188,7 +194,7 @@ export default function App() {
               </div>
             ) : error ? (
               <div className="flex items-center justify-center h-32 text-white/30 text-sm">
-                Data unavailable
+                Veri yok
               </div>
             ) : (
               <>
@@ -221,7 +227,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Search Overlay - Animated */}
+          {/* Search Overlay */}
           <div 
             className={`absolute inset-0 bg-[#2d1b54] p-6 z-20 flex flex-col items-center justify-center transition-all duration-500 ease-in-out ${
               showSearch 
@@ -229,14 +235,14 @@ export default function App() {
                 : '-translate-y-full opacity-0 pointer-events-none'
             }`}
           >
-            <h3 className="text-xl font-bold mb-4">Find City</h3>
+            <h3 className="text-xl font-bold mb-4">Şehir Ara</h3>
             <form onSubmit={handleSearchSubmit} className="w-full relative">
               <input 
                 ref={inputRef}
                 type="text" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Enter city name..."
+                placeholder="Şehir adı girin..."
                 className="w-full bg-white/10 border border-white/20 rounded-full px-5 py-3 text-white placeholder-white/40 focus:outline-none focus:border-pink-400"
               />
               <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-pink-500 rounded-full">
@@ -247,11 +253,11 @@ export default function App() {
               onClick={() => setShowSearch(false)}
               className="mt-4 text-sm text-white/50 hover:text-white"
             >
-              Cancel
+              İptal
             </button>
           </div>
 
-          {/* List Overlay - Animated */}
+          {/* List Overlay */}
           <div 
             className={`absolute inset-0 bg-[#2d1b54] z-20 flex flex-col transition-all duration-500 ease-in-out ${
               showList
@@ -260,7 +266,7 @@ export default function App() {
             }`}
           >
             <div className="flex items-center justify-between p-6 pb-2">
-              <h3 className="text-xl font-bold">Saved Cities</h3>
+              <h3 className="text-xl font-bold">Kaydedilenler</h3>
               <button onClick={() => setShowList(false)} className="p-2 bg-white/10 rounded-full hover:bg-white/20">
                 <X className="w-5 h-5 text-white" />
               </button>
@@ -269,8 +275,8 @@ export default function App() {
             <div className="flex-1 overflow-y-auto p-6 pt-2 space-y-3 hide-scrollbar">
               {savedCities.length === 0 ? (
                 <div className="text-center text-white/40 mt-10">
-                  <p>No cities saved yet.</p>
-                  <p className="text-sm mt-2">Search for a city to add it here.</p>
+                  <p>Henüz şehir kaydedilmedi.</p>
+                  <p className="text-sm mt-2">Eklemek için arama yapın.</p>
                 </div>
               ) : (
                 savedCities.map((cityData, idx) => (
@@ -305,7 +311,7 @@ export default function App() {
             <button 
               onClick={handleGeoLocation}
               className="p-2 text-white/70 hover:text-white transition-colors"
-              title="Locate Me"
+              title="Konumum"
             >
               <MapPin className="w-6 h-6" />
             </button>

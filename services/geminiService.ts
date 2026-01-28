@@ -14,13 +14,13 @@ const cleanAndParseJson = (text: string): any => {
   return JSON.parse(cleaned);
 };
 
+// Helper for delay (ms)
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const fetchWeather = async (location: string): Promise<WeatherData> => {
-  // Using gemini-3-flash-preview. 
-  // It is critical to use a model that supports Grounding (Search) well.
   const model = "gemini-3-flash-preview"; 
-  const now = new Date().toLocaleString("en-US", { timeZoneName: "short" });
+  const now = new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", timeZoneName: "short" });
   
-  // We move the core instructions to systemInstruction to enforce behavior strongly.
   const systemInstruction = `
     You are a strictly factual Weather API. 
     Your ONLY job is to retrieve real-time weather data using the 'googleSearch' tool and format it as JSON.
@@ -42,9 +42,9 @@ export const fetchWeather = async (location: string): Promise<WeatherData> => {
     2. Extract the current temperature, condition, high/low for today, and the forecast.
     3. Format the response strictly according to this JSON Schema:
     {
-      "city": "String (The specific city name found)",
+      "city": "String (The specific city name found in Turkish if possible)",
       "temp": Number (The CURRENT live temperature in Celsius),
-      "condition": "String (e.g., 'Cloudy', 'Sunny', 'Rain')",
+      "condition": "String (e.g., 'Bulutlu', 'Güneşli', 'Yağmurlu' - Translate to Turkish)",
       "high": Number (Today's High in Celsius),
       "low": Number (Today's Low in Celsius),
       "feelsLike": Number (in Celsius),
@@ -52,7 +52,7 @@ export const fetchWeather = async (location: string): Promise<WeatherData> => {
         { "time": "HH:MM", "temp": Number, "icon": "String (cloudy, rain, sun, partly-cloudy, storm, snow, moon)", "isNow": Boolean }
       ],
       "weekly": [
-        { "day": "String", "high": Number, "low": Number, "icon": "String" }
+        { "day": "String (Day name in Turkish)", "high": Number, "low": Number, "icon": "String" }
       ]
     }
     
@@ -61,41 +61,69 @@ export const fetchWeather = async (location: string): Promise<WeatherData> => {
     - For 'weekly': Forecast for the next 5 days.
   `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: jsonPrompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        // Temperature 0 is CRITICAL for factual data retrieval. 
-        // It prevents the model from "hallucinating" plausible but wrong numbers.
-        temperature: 0, 
-        systemInstruction: systemInstruction,
-      },
-    });
+  let lastError: any;
+  const maxRetries = 3; // Maximum number of retries
 
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
-      ?.map((chunk: any) => chunk.web)
-      .filter((web: any) => web)
-      .map((web: any) => ({ title: web.title, uri: web.uri }));
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: model,
+        contents: jsonPrompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+          temperature: 0, 
+          systemInstruction: systemInstruction,
+        },
+      });
 
-    const textResponse = response.text || "{}";
-    
-    // Safety check: ensure the response looks like JSON before parsing
-    if (!textResponse.includes('{')) {
-      throw new Error("Invalid response format from AI");
+      const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
+        ?.map((chunk: any) => chunk.web)
+        .filter((web: any) => web)
+        .map((web: any) => ({ title: web.title, uri: web.uri }));
+
+      const textResponse = response.text || "{}";
+      
+      // Validate response structure
+      if (!textResponse.includes('{')) {
+        throw new Error("Invalid response format from AI");
+      }
+
+      const data = cleanAndParseJson(textResponse) as WeatherData;
+      
+      if (sources && sources.length > 0) {
+        data.sources = sources;
+      }
+
+      return data;
+
+    } catch (error: any) {
+      lastError = error;
+      const errorStr = JSON.stringify(error);
+      
+      // Check for 429 (Too Many Requests) or Resource Exhausted errors
+      const isQuotaError = errorStr.includes("429") || 
+                           errorStr.includes("RESOURCE_EXHAUSTED") || 
+                           errorStr.includes("quota");
+
+      if (isQuotaError && attempt < maxRetries) {
+        // Exponential backoff: Wait 1s, then 2s, then 4s...
+        const delayTime = Math.pow(2, attempt - 1) * 1000;
+        console.warn(`Attempt ${attempt} failed with 429/Quota. Retrying in ${delayTime}ms...`);
+        await wait(delayTime);
+        continue;
+      }
+      
+      // If it's not a quota error or we ran out of retries, break the loop
+      break;
     }
-
-    const data = cleanAndParseJson(textResponse) as WeatherData;
-    
-    if (sources && sources.length > 0) {
-      data.sources = sources;
-    }
-
-    return data;
-
-  } catch (error) {
-    console.error("Weather fetch failed:", error);
-    throw error;
   }
+
+  // Handle the final error to provide a user-friendly message
+  const finalErrorStr = lastError?.message || JSON.stringify(lastError);
+  
+  if (finalErrorStr.includes("429") || finalErrorStr.includes("RESOURCE_EXHAUSTED")) {
+    throw new Error("⚠️ Sunucu çok yoğun (Kota Aşıldı). Lütfen 10-15 saniye bekleyip tekrar deneyin.");
+  }
+  
+  throw lastError;
 };
