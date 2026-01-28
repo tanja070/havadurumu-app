@@ -1,0 +1,7 @@
+{
+  "name": "Gemini Weather AI",
+  "description": "A beautiful, AI-powered weather dashboard featuring a glassmorphic design and real-time weather generation.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
