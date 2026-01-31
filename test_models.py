@@ -29,8 +29,8 @@ except Exception as e:
 print("\n--- Testing Generation with 'gemini-1.5-flash' ---")
 try:
     response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents="Hello, are you working?",
+        model="gemini-2.0-flash",
+        contents="Hello, can you tell me the weather concept?",
     )
     print(f"Response: {response.text}")
 except Exception as e:
