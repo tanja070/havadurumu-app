@@ -58,6 +58,8 @@ def main():
             
             if weather_data.get("isMock"):
                 st.warning("Gerçek veri alınamadı, örnek veri gösteriliyor.")
+                if "error_details" in weather_data:
+                    st.error(f"Hata Detayı: {weather_data['error_details']}")
 
 if __name__ == "__main__":
     main()

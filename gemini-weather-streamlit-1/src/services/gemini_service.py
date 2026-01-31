@@ -102,5 +102,8 @@ def fetch_weather(location: str):
         return data
 
     except Exception as e:
+        # Return error message to UI for easier debugging
         print(f"Error fetching weather: {e}")
-        return get_fallback_weather(location)
+        fallback = get_fallback_weather(location)
+        fallback["error_details"] = str(e) # Expose error to UI
+        return fallback
