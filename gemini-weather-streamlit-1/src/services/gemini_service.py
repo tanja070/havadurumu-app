@@ -35,7 +35,7 @@ def fetch_weather(location: str):
 
     client = genai.Client(api_key=api_key)
     
-    model_id = "gemini-1.5-pro" # Switching to Pro model as requested
+    model_id = "gemini-2.0-flash" # Updated based on available models list
     tz = pytz.timezone('Europe/Istanbul')
     now = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
 
